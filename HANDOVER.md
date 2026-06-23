@@ -1,7 +1,5 @@
 # Rikkahub Storage Optimization — 交接报告
 
-**致**：yuh-G（Rikkahub 原作者）
-**来自**：DAWN
 **日期**：2026-06-24
 **版本**：v1.2.5-Refcat-0.1.0-beta
 
@@ -12,10 +10,9 @@
 Rikkahub PC 将所有数据（配置 + 对话 + 日志）存储在单一 `state.json` 中，流式对话期间每 200ms 全量重写该文件。随着使用时间增长，这导致：
 
 1. **流式写入阻塞** — 序列化数百 MB JSON 阻塞事件循环
-2. **SSD 磨损** — 高频全量写入大文件
-3. **日志冗余膨胀** — `requestBody` 和 `requestPreview` 各自存储相同的完整请求体（对话不超 256KB 时截断不生效），相当于每份请求存了两遍
+2. **SSD 磨损** — 高频、长时间写入大文件
+3. **日志冗余膨胀** — `requestBody` 和 `requestPreview` 各自存储相同的完整请求体（对话不超 256KB 时截断不生效），相当于每份请求存了两遍，在我的使用情况下，不到一个月state.json文件便已经膨胀到92MB，且每次流式传输对话中，都会产生200mb/s的磁盘读写活动，并长时间持续直至传输结束。
 
-本次重构围绕"存储减负"展开，目标：**让 Rikkahub 跑得更轻、更久、更干净**。
 
 ---
 
@@ -42,7 +39,7 @@ function smartTruncate(value, maxStrLen = 100, maxArrayLen = 200, depth = 0, max
 jsonPreview(body) → JSON.stringify(smartTruncate(body), null, 2)
 ```
 
-效果：日志保留完整 JSON 结构（所有 key、message role、tool name），仅长文本被截断，调试价值远高于盲截断。
+效果：日志保留完整 JSON 结构（所有 key、message role、tool name），仅长文本被截断，调试价值更高。
 
 #### 2.2 纯文本截断收紧
 
@@ -77,13 +74,14 @@ for (const log of state.logs) {
 
 ## 三、新增的文件
 
+在重构过程中，为了转换我先前使用的聊天记录，我用AI编写了一份新的转换工具。它的功能是备份旧版数据、对旧版数据进行切割并创建新版本文件结构。
 ### `pc-server/convert.ts`（TypeScript 原型）
 
 独立 CLI 工具，提供日志瘦身功能。已被 Rust 版本替代，保留作为参考实现。
 
 ### `pc-converter/`（Rust 重构，1.4 MB）
 
-全新独立转换器，用 Rust 重写，产物仅 **1.4 MB**（对比 Bun 编译的 114 MB）。
+全新独立转换器，用 Rust 重写。
 
 **使用方式**：
 1. 将 `convert-pc-data.exe` 放到 `rikkahub.exe` 同级（与 `pc-data` 目录并列）
@@ -144,19 +142,10 @@ pc-data/
 ## 六、技术选型说明
 
 - **`smartTruncate` 放在 `jsonPreview` 内部**：所有 ~40 个 `addLog` 调用方无需修改，自动生效
-- **Rust 重写转换器**：Bun `--compile` 会将整个 JS 运行时（JavaScriptCore + API）打包进 exe，导致产物 ~114MB。Rust 编译为原生二进制，配合 `opt-level = "s"` + LTO + strip，产物仅 1.4 MB
 - **向后兼容**：`loadState()` 自动检测 `schemaVersion`，旧格式自动迁移，新格式直接加载
 
 ---
 
 ## 七、后续建议
 
-1. **NSIS 打包** — Tauri 内建 NSIS 下载在墙内经常超时。需要在 `%LOCALAPPDATA%\tauri\NSIS\` 下准备好 `nsis-3.11` 解压目录 + `Plugins\x86-unicode\additional\nsis_tauri_utils.dll`。详见博文：https://blog.csdn.net/Ricost/article/details/161190652
-2. **logs 上限** — 当前 `addLog()` 保留最近 500 条（`state.logs.slice(0, 500)`），智能截断后即使 500 条也仅占用数 MB
-3. **转换器增强** — 可考虑添加只读模式（显示统计不修改）和选择性日志保留（如保留最近 N 条错误日志）
-
----
-
-感谢你创造了 Rikkahub，这是一个非常棒的 LLM 客户端。希望这些改动能对你有所帮助。
-
-— DAWN
+1. **logs 上限** — 当前 `addLog()` 保留最近 500 条（`state.logs.slice(0, 500)`），智能截断后即使 500 条也仅占用数 MB
