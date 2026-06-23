@@ -1,0 +1,2 @@
+[permissions]
+allow = ["Bash(Get-ChildItem \"E:\\Projects\\Dev\\Rikkahub-StorageOptimize\\Rikkahub-Desktop\\dist\\pc-data\\conversations\" -Recurse -File | Measure-Object | Select-Object -ExpandProperty Count)"]

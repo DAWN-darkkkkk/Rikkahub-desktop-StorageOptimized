@@ -1,0 +1,28 @@
+# Data — never commit sample data
+pc-data/
+old-pc-data/
+
+# Build outputs
+convert-pc-data.exe
+*.zip
+/dist/
+/web-ui/build/
+/web-ui/.react-router/
+/web-ui/node_modules/
+/web-ui/src-tauri/binaries/*.exe
+/web-ui/src-tauri/gen/
+/web-ui/src-tauri/permissions/
+/web-ui/src-tauri/target/
+/target/
+
+# Rust converter build
+pc-converter/target/
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.iml
+
+# Logs
+*.log
