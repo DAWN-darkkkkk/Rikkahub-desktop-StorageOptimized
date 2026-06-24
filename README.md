@@ -1,4 +1,4 @@
-# Rikkahub Storage Optimization — 交接报告
+# Rikkahub Storage Optimization
 
 **日期**：2026-06-24
 **版本**：v1.2.5-Refcat-0.1.0-beta
@@ -70,6 +70,9 @@ for (const log of state.logs) {
 
 下次 `saveState()` 时自然写出不含冗余字段的紧凑版本。
 
+#### 2.5 FTS检索加速
+通过SQL FTS5建立检索数据库，实现更高效的对话内容检索。
+
 ---
 
 ## 三、新增的文件
@@ -100,11 +103,7 @@ for (const log of state.logs) {
 - **对话拆分** — v1 格式的 `conversations[]` 按 `YYYY/YYYY-MM-DD/id.json` 提取
 - **日志清除** — 直接删除所有历史日志（反正新日志会以智能截断格式重新生成）
 - **FTS 重建** — 重建 `conversations.db` 全文索引
-- **原地操作** — 不再在 pc-data 内生成 `.backup` 文件
 
-### `web-ui/build/client/icons/`
-
-将 `icons/` 目录复制到前端 build 输出中，修复了供应商图标和任务栏图标丢失的问题。
 
 ---
 
@@ -119,7 +118,6 @@ for (const log of state.logs) {
 | 流式写入 | 全量写 state.json | 仅写当前会话文件 |
 | requestBody/responseBody 冗余 | 每条存两遍 | 已消除 |
 | 日志截断策略 | 256KB 盲截断（几乎不触发） | 100 chars 智能字段截断 |
-| 转换器大小 | — | 1.4 MB（Rust） |
 
 ---
 
@@ -142,10 +140,9 @@ pc-data/
 ## 六、技术选型说明
 
 - **`smartTruncate` 放在 `jsonPreview` 内部**：所有 ~40 个 `addLog` 调用方无需修改，自动生效
-- **向后兼容**：`loadState()` 自动检测 `schemaVersion`，旧格式自动迁移，新格式直接加载
 
 ---
 
 ## 七、后续建议
 
-1. **logs 上限** — 当前 `addLog()` 保留最近 500 条（`state.logs.slice(0, 500)`），智能截断后即使 500 条也仅占用数 MB
+1. **logs 分文件** — 尽管当前已经对log进行了截断处理，但可以预见随着使用时间增长，log依然会逐渐膨胀。我认为将log同样按日期分文件存储是下一步修改的方向，同时可以增加log日期筛选等功能。
