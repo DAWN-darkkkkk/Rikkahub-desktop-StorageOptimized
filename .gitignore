@@ -26,3 +26,7 @@ pc-converter/target/
 
 # Logs
 *.log
+
+# Bun build cache
+*.bun-build
+
