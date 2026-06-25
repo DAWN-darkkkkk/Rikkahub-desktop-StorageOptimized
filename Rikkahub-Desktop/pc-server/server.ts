@@ -591,7 +591,7 @@ function startAnalytics(): void {
 // MUST be kept in sync with web-ui/src-tauri/tauri.conf.json's `version` field. The update
 // checker compares this against the latest GitHub release tag and the version is also shown
 // verbatim in the About page. If you bump tauri.conf.json's version, bump this too.
-const APP_VERSION = "1.2.5-Refcat-0.1.0-beta";
+const APP_VERSION = "1.2.5-Refact-0.3.0-beta";
 
 type GithubRelease = {
   tag_name?: string;
@@ -2033,25 +2033,33 @@ function searchConversationsFts(
     const ftsQuery = escaped.split(/\s+/).map((w) => `"${w}" *`).join(" AND ");
     // 直接用参数化查询避免 FTS query 注入
     const rows = ftsDb.query(
-      "SELECT conversation_id, title, snippet(conversation_fts, 1, '<mark>', '</mark>', '…', 40) as snippet FROM conversation_fts WHERE conversation_fts MATCH ? LIMIT 50",
+      "SELECT conversation_id, title, snippet(conversation_fts, 1, '[', ']', '…', 40) as snippet FROM conversation_fts WHERE conversation_fts MATCH ? LIMIT 50",
     ).all(ftsQuery) as { conversation_id: string; title: string; snippet: string }[];
     const results: { nodeId: string; messageId: string; conversationId: string; title: string; updateAt: number; snippet: string }[] = [];
     for (const row of rows) {
       const conv = getConversation(row.conversation_id);
       if (!conv) continue;
       if (assistantId && conv.assistantId !== assistantId) continue;
-      // 从匹配的对话中提取第一条匹配消息的信息
-      const firstMatch = conv.messages.find((node) => {
-        const msg = node.messages[node.selectIndex];
-        return msg && textFromParts(msg.parts).toLowerCase().includes(escaped.toLowerCase());
-      });
+      // 遍历所有节点和分支，找到第一条匹配的消息
+      let matchedNodeId = "";
+      let matchedMessageId = "";
+      for (const node of conv.messages) {
+        for (const msg of node.messages) {
+          if (textFromParts(msg.parts).toLowerCase().includes(escaped.toLowerCase())) {
+            matchedNodeId = node.id;
+            matchedMessageId = msg.id;
+            break;
+          }
+        }
+        if (matchedMessageId) break;
+      }
       results.push({
-        nodeId: firstMatch?.id ?? "",
-        messageId: firstMatch?.messages[firstMatch.selectIndex]?.id ?? "",
+        nodeId: matchedNodeId,
+        messageId: matchedMessageId,
         conversationId: conv.id,
         title: conv.title || row.title,
         updateAt: conv.updateAt,
-        snippet: row.snippet.replace(/<mark>/g, "<mark>").replace(/<\/mark>/g, "</mark>"),
+        snippet: row.snippet,
       });
     }
     return results;
@@ -13957,6 +13965,53 @@ async function routeApi(request: Request, url: URL) {
     const common = isRecord(nextServer.commonOptions) ? nextServer.commonOptions : {};
     if (common.connected === false) return error(String(common.lastSyncError ?? "MCP sync failed"), 502);
     return json({ status: "ok", tools: Array.isArray(common.tools) ? common.tools : [], server: result.item });
+  }
+  if (path === "settings/mcp-servers/import" && request.method === "POST") {
+    const body = await readJson<{ mcpServers?: Record<string, Record<string, unknown>> }>(request);
+    const imported = body.mcpServers ?? {};
+    const existingUrls = new Set(
+      (state.settings.mcpServers as Array<Record<string, JsonValue>>)
+        .map((s) => String(s.url ?? "").trim())
+        .filter(Boolean),
+    );
+    const added: Record<string, unknown>[] = [];
+    for (const [name, cfg] of Object.entries(imported)) {
+      if (!cfg || typeof cfg !== "object") continue;
+      const url = String(cfg.url ?? "").trim();
+      if (!url) continue;
+      if (existingUrls.has(url)) continue; // 跳过已存在的 URL
+      const server: Record<string, JsonValue> = {
+        id: id(),
+        type: String(cfg.type ?? "streamable_http") === "sse" ? "sse" : "streamable_http",
+        url,
+        commonOptions: {
+          enable: true,
+          name: name || "MCP Server",
+          headers: Array.isArray(cfg.headers) ? cfg.headers : [],
+          tools: [],
+          lastSyncAt: null,
+          lastSyncError: "",
+          connected: false,
+        },
+      };
+      // 尝试同步工具列表
+      try {
+        const synced = await syncMcpServerTools(server);
+        const result = upsertById(state.settings.mcpServers as JsonValue[], synced);
+        state.settings.mcpServers = result.items as JsonValue[];
+        added.push(synced);
+        existingUrls.add(url);
+      } catch {
+        const result = upsertById(state.settings.mcpServers as JsonValue[], server);
+        state.settings.mcpServers = result.items as JsonValue[];
+        added.push(server);
+        existingUrls.add(url);
+      }
+    }
+    if (added.length > 0) {
+      updateSettings(state.settings);
+    }
+    return json({ status: "ok", added, count: added.length });
   }
   if (path === "settings/mode-injection/detail" && request.method === "POST") {
     const body = await readJson<Record<string, JsonValue>>(request);

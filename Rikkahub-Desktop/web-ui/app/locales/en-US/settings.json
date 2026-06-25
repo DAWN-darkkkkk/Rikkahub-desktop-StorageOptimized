@@ -447,7 +447,14 @@
       "tools_empty": "Tools are synced automatically once enabled and saved.",
       "needs_approval": "Needs approval",
       "collapse": "Collapse",
-      "expand": "Expand"
+      "expand": "Expand",
+      "import": "Import",
+      "import_title": "Import MCP Servers",
+      "import_desc": "Paste standard MCP config JSON (mcpServers format).",
+      "import_btn": "Import",
+      "import_success": "Imported {{count}} MCP server(s)",
+      "import_failed": "Import failed, check JSON format",
+      "cancel": "Cancel"
     },
     "entry_n": "Entry {{n}}",
     "entry_name_ph": "(optional) entry name",

@@ -5100,6 +5100,28 @@ function McpServerEditor({
     await pullSettings(onSettings);
     toast.success(t("settings:mcp.server.deleted"));
   };
+  const [importDialogOpen, setImportDialogOpen] = React.useState(false);
+  const [importText, setImportText] = React.useState("");
+  const [importing, setImporting] = React.useState(false);
+  const handlePasteImport = async () => {
+    if (!importText.trim()) return;
+    setImporting(true);
+    try {
+      const data = JSON.parse(importText);
+      const res = await api.post<{ status: string; added: unknown[]; count: number }>(
+        "settings/mcp-servers/import",
+        data,
+      );
+      toast.success(t("settings:mcp.server.import_success", { count: res.count }));
+      await pullSettings(onSettings);
+      setImportDialogOpen(false);
+      setImportText("");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t("settings:mcp.server.import_failed"));
+    } finally {
+      setImporting(false);
+    }
+  };
   const reorder = async (from: number, to: number) => {
     const next = moveItem(servers, from, to);
     onSettings({ ...settings, mcpServers: next as unknown as Settings["mcpServers"] });
@@ -5108,7 +5130,39 @@ function McpServerEditor({
   };
 
   return (
-    <EditorShell
+    <>
+      <div className="mb-3 flex gap-2">
+        <Button size="sm" variant="outline" onClick={() => { setImportText(""); setImportDialogOpen(true); }}>
+          <Upload className="size-4" />
+          <span className="ml-1">{t("settings:mcp.server.import")}</span>
+        </Button>
+      </div>
+      <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{t("settings:mcp.server.import_title")}</DialogTitle>
+            <DialogDescription>
+              {t("settings:mcp.server.import_desc")}
+            </DialogDescription>
+          </DialogHeader>
+          <textarea
+            className="min-h-[200px] w-full rounded-md border bg-muted/30 p-3 text-sm font-mono"
+            placeholder={`{\n  "mcpServers": {\n    "server-name": {\n      "type": "streamable_http",\n      "url": "https://..."\n    }\n  }\n}`}
+            value={importText}
+            onChange={(e) => setImportText(e.target.value)}
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setImportDialogOpen(false)} disabled={importing}>
+              {t("settings:mcp.server.cancel")}
+            </Button>
+            <Button onClick={handlePasteImport} disabled={importing || !importText.trim()}>
+              {importing ? <Loader2 className="size-4 animate-spin" /> : null}
+              {t("settings:mcp.server.import_btn")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <EditorShell
       items={servers}
       selectedId={selectedId}
       emptyLabel={t("settings:mcp.server.empty")}
@@ -5348,6 +5402,7 @@ function McpServerEditor({
         </div>
       </div>
     </EditorShell>
+    </>
   );
 }
 

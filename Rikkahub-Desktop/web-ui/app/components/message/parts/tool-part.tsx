@@ -289,9 +289,13 @@ function getToolTitle(toolName: string, args: unknown, t: TFunction): string {
 }
 
 function JsonBlock({ value }: { value: unknown }) {
+  const text =
+    typeof value === "string"
+      ? value.replace(/\\n/g, "\n").replace(/\\t/g, "\t").replace(/\\r/g, "\r")
+      : toJsonString(value);
   return (
-    <pre className="max-h-64 overflow-auto rounded-md border bg-muted/30 p-3 text-xs">
-      {toJsonString(value)}
+    <pre className="overflow-auto whitespace-pre-wrap break-all rounded-md border bg-muted/30 p-3 text-xs">
+      {text}
     </pre>
   );
 }
@@ -788,48 +792,52 @@ export function ToolPart({
             </DrawerDescription>
           </DrawerHeader>
 
-          <div className="flex-1 min-h-0 space-y-4 overflow-y-auto px-4 pb-6">
+          <div className="flex-1 min-h-0 flex flex-col overflow-hidden px-4 pb-6">
             {tool.toolName === TOOL_NAMES.SEARCH_WEB && isExecuted ? (
               <SearchWebPreview args={args} content={outputContent} />
             ) : tool.toolName === TOOL_NAMES.SCRAPE_WEB && isExecuted ? (
               <ScrapeWebPreview content={outputContent} />
             ) : (
-              <div className="space-y-3">
-                <div>
+              <>
+                {/* 参数 — 固定高度，必要时可滚动 */}
+                <div className="shrink-0 max-h-[30%] overflow-y-auto">
                   <div className="mb-1 text-muted-foreground text-xs">
                     {t("tool_part.parameters")}
                   </div>
                   <JsonBlock value={args} />
                 </div>
+                {/* 结果 — 填满剩余空间 */}
                 {isExecuted && (
-                  <div className="space-y-2">
-                    <div className="mb-1 text-muted-foreground text-xs">
+                  <div className="flex-1 min-h-0 flex flex-col mt-3">
+                    <div className="mb-1 text-muted-foreground text-xs shrink-0">
                       {t("tool_part.result")}
                     </div>
-                    {tool.output.map((part, i) => {
-                      if (part.type === "text") {
-                        let parsed: unknown;
-                        try {
-                          parsed = JSON.parse(part.text);
-                        } catch {
-                          parsed = part.text;
+                    <div className="flex-1 min-h-0 overflow-y-auto space-y-2">
+                      {tool.output.map((part, i) => {
+                        if (part.type === "text") {
+                          let parsed: unknown;
+                          try {
+                            parsed = JSON.parse(part.text);
+                          } catch {
+                            parsed = part.text;
+                          }
+                          return <JsonBlock key={i} value={parsed} />;
                         }
-                        return <JsonBlock key={i} value={parsed} />;
-                      }
-                      if (part.type === "image")
-                        return <ImagePartRenderer key={i} url={part.url} />;
-                      if (part.type === "video")
-                        return <VideoPartRenderer key={i} url={part.url} />;
-                      if (part.type === "audio")
-                        return <AudioPartRenderer key={i} url={part.url} />;
-                      return null;
-                    })}
+                        if (part.type === "image")
+                          return <ImagePartRenderer key={i} url={part.url} />;
+                        if (part.type === "video")
+                          return <VideoPartRenderer key={i} url={part.url} />;
+                        if (part.type === "audio")
+                          return <AudioPartRenderer key={i} url={part.url} />;
+                        return null;
+                      })}
+                    </div>
                   </div>
                 )}
                 {!isExecuted && (
                   <div className="text-muted-foreground text-sm">{t("tool_part.not_executed")}</div>
                 )}
-              </div>
+              </>
             )}
           </div>
         </DrawerContent>

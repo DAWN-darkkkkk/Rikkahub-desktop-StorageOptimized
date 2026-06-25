@@ -420,7 +420,14 @@
       "tools_empty": "启用并保存后会自动同步工具。",
       "needs_approval": "需要用户审核",
       "collapse": "收起",
-      "expand": "展开"
+      "expand": "展开",
+      "import": "从Json代码导入MCP",
+      "import_title": "从Json代码导入MCP",
+      "import_desc": "粘贴Json代码以自动配置MCP服务器，仅支持SteamableHTTP/SSE协议",
+      "import_btn": "导入",
+      "import_success": "已导入 {{count}} 个 MCP 服务器",
+      "import_failed": "导入失败，请检查 JSON 格式",
+      "cancel": "取消"
     },
     "entry_n": "条目 {{n}}",
     "entry_name_ph": "（可选）条目名称",
